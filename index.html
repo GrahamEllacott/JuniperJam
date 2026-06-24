@@ -10,8 +10,91 @@
         <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
         <script src="https://tgfwars.github.io/bjsenv/v5/functions.js"></script>
         <script src="https://tgfwars.github.io/bjsenv/v5/setup.js"></script>
+
+        <!-- Template Scripts -->
+        <script src="common/functions.js"></script>
+
+        <!-- Game Scripts -->
+        <script src="common/common.js"></script>
+        <script src="game/galaxy.js"></script>
+
+        <style>
+            html,
+            body {
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            #renderCanvas {
+                width: 100%;
+                height: 100%;
+                touch-action: none;
+            }
+        </style>
     </head>
     <body>
-        
+        <canvas id="renderCanvas"></canvas>
+        <script>
+            var canvas = document.getElementById("renderCanvas");
+
+            var startRenderLoop = function (engine, canvas) {
+                engine.runRenderLoop(function () {
+                    if (sceneToRender && sceneToRender.activeCamera) {
+                        sceneToRender.render();
+                    }
+                });
+            }
+
+            var engine = null;
+            var scene = null;
+            var sceneToRender = null;
+            var createDefaultEngine = function () { return new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true, disableWebGL2Support: false }); };
+            var createScene = async function () {
+                // This creates a basic Babylon Scene object (non-mesh)
+                var scene = new BABYLON.Scene(engine);
+
+                await setupCamera(scene);
+                await setupGalaxy(scene);
+                //////// Only Add / edit code below (Do not edit above) ////////
+
+                return scene;
+            };
+
+            window.initFunction = async function () {
+                var asyncEngineCreation = async function () {
+                    try {
+                        return createDefaultEngine();
+                    } catch (e) {
+                        console.log("the available createEngine function failed. Creating the default engine instead");
+                        return createDefaultEngine();
+                    }
+                }
+
+                engine = await asyncEngineCreation();
+                window.engine = engine;
+
+                const engineOptions = window.engine.getCreationOptions?.();
+                if (!engineOptions || engineOptions.audioEngine !== false) {
+                }
+                if (!engine) throw 'engine should not be null.';
+                startRenderLoop(engine, canvas);
+                scene = createScene();
+                window.scene = scene;
+            };
+
+            initFunction().then(() => {
+                scene.then(returnedScene => {
+                    sceneToRender = returnedScene;
+                });
+            });
+
+            // Resize
+            window.addEventListener("resize", function () {
+                engine.resize();
+            });
+        </script>
     </body>
 </html>
