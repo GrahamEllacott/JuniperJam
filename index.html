@@ -14,9 +14,12 @@
         <!-- Template Scripts -->
         <script src="common/functions.js"></script>
 
+        <!-- Data -->
+        <script src="game/data/planets.js"></script>
+
         <!-- Game Scripts -->
         <script src="common/common.js"></script>
-        <script src="game/galaxy.js"></script>
+        <script src="game/visualLayer.js"></script>
 
         <style>
             html,
@@ -43,6 +46,7 @@
             var startRenderLoop = function (engine, canvas) {
                 engine.runRenderLoop(function () {
                     if (sceneToRender && sceneToRender.activeCamera) {
+                        updateGalaxyVisual();
                         sceneToRender.render();
                     }
                 });
@@ -57,7 +61,7 @@
                 var scene = new BABYLON.Scene(engine);
 
                 await setupCamera(scene);
-                await setupGalaxy(scene);
+                await setupGalaxyVisual(scene);
                 //////// Only Add / edit code below (Do not edit above) ////////
 
                 return scene;

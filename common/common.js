@@ -26,7 +26,7 @@ async function setupCamera(scene) {
     camera.upperAlphaLimit = camera.alpha;
     camera.attachControl(canvas, true);
     scene.activeCamera = camera;
-    
+
     scene.getEngine().onResizeObservable.add(function () {
         setCameraOrtho(camera);
     });
