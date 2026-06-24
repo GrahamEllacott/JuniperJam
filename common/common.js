@@ -18,20 +18,26 @@ async function setupCamera(scene) {
         scene
     );
     camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
-    var engine = scene.getEngine();
-    var aspect = engine.getRenderWidth() / engine.getRenderHeight();
-    var verticalSize = 12;
-    camera.orthoTop = verticalSize * 0.5;
-    camera.orthoBottom = verticalSize * -0.5;
-    camera.orthoLeft = verticalSize * aspect * -0.5;
-    camera.orthoRight = verticalSize * aspect * 0.5;
+    setCameraOrtho(camera);
+
     camera.lowerBetaLimit = camera.beta;
     camera.upperBetaLimit = camera.beta;
     camera.lowerAlphaLimit = camera.alpha;
     camera.upperAlphaLimit = camera.alpha;
     camera.attachControl(canvas, true);
     scene.activeCamera = camera;
+    
     scene.getEngine().onResizeObservable.add(function () {
         setCameraOrtho(camera);
     });
+
+    function setCameraOrtho(camera) {
+        var engine = scene.getEngine();
+        var aspect = engine.getRenderWidth() / engine.getRenderHeight();
+        var verticalSize = 12;
+        camera.orthoTop = verticalSize * 0.5;
+        camera.orthoBottom = verticalSize * -0.5;
+        camera.orthoLeft = verticalSize * aspect * -0.5;
+        camera.orthoRight = verticalSize * aspect * 0.5;
+    }
 }
