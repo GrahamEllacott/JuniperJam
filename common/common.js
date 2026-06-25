@@ -95,8 +95,27 @@ async function setupCommon(scene) {
 
   var faceMaterial, faceMaterialClone;
 
-  planets.forEach(async function (planet) {
+  await BABYLON.SceneLoader.ImportMeshAsync(
+    "",
+    "common/",
+    "face.glb",
+    scene
+  )
 
+  let facePlaneNotAttachedMaterial = scene.getMeshByName("planetFace").material;
+  facePlaneNotAttachedMaterial.albedoTexture.coordinatesIndex = 0;
+
+  let facePlaneAttachedMaterial = facePlaneNotAttachedMaterial.clone();
+  facePlaneAttachedMaterial.albedoTexture.coordinatesIndex = 1;
+
+  sun.face = scene.getMeshByName("planetFace").clone("sunFace");
+  sun.face.parent = sun;
+  sun.face.scaling.setAll(2.15 * 0.42);
+  sun.face.position.y = 2.15 * 0.5 + 0.02;
+  sun.face.rotationQuaternion = null;
+  sun.face.rotation.y = Math.PI * .75;
+
+  planets.forEach(async function (planet) {
     planet.material = makeMat(planet.name + "Mat", planet.color, false);
     planet.spinSpeed = randomPlanetSpinSpeed();
     planet.root = new BABYLON.TransformNode(planet.name + "Root", scene);
@@ -125,23 +144,13 @@ async function setupCommon(scene) {
       planet.bladeUpgrade = createBladeUpgrade(planet, scene);
     }
 
-    var facePlane = await BABYLON.SceneLoader.ImportMeshAsync(
-      "",
-      "common/",
-      "face.glb",
-      scene
-    )
-    planet.face = facePlane.meshes[0];
+    planet.face = scene.getMeshByName("planetFace").clone(planet.name + "Face");
     planet.face.parent = planet.root;
     planet.face.scaling.setAll(planet.size * 0.42);
     planet.face.position.y = orbitPlaneY + planet.size * 0.5 + 0.02;
     planet.face.rotationQuaternion = null;
     planet.face.rotation.y = Math.PI * .75;
-
     
-    faceMaterial = planets[0].face.material;
-    faceMaterialClone = faceMaterial.clone("faceMaterialClone");
-    faceMaterialClone.albedoTexture.coordinatesIndex = 1;
   });
 
   var satelliteRoot = new BABYLON.TransformNode("satelliteRoot", scene);
@@ -454,19 +463,18 @@ async function setupCommon(scene) {
       }
       updatePlanetBladeUpgradeRespawn(planet, dt);
 
-      //check if the satellite is orbiting this planet
-      if (state.currentOrbitKind === "planet") {
-        var currentPlanet = planets[state.currentPlanet];
-        if (planet == currentPlanet) {
-          //change the expression
-          planet.face.material = faceMaterialClone;
-        } else {
-          //set to default expression
-          planet.face.material = faceMaterial;
-        }
+      var currentPlanet = state.currentOrbitKind === "planet" ? planets[state.currentPlanet] : null;
+      if (planet == currentPlanet) {
+        //change the expression
+        planet.face.material = facePlaneAttachedMaterial;
+      } else {
+        //set to default expression
+        planet.face.material = facePlaneNotAttachedMaterial;
       }
     });
-    sun.rotation.y += dt * 0.5;
+    sun.face.material = state.currentOrbitKind === "sun"
+      ? facePlaneAttachedMaterial
+      : facePlaneNotAttachedMaterial;
   }
 
   function createCubeSentries() {
