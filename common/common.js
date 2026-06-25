@@ -1,4 +1,5 @@
 async function setupCommon(scene) {
+  var config = createJuniperConfig();
   scene.clearColor = new BABYLON.Color4(0.01, 0.01, 0.035, 1);
   scene.gravity = BABYLON.Vector3.Zero();
   scene.collisionsEnabled = false;
@@ -18,7 +19,7 @@ async function setupCommon(scene) {
     scene
   );
   camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
-  setCameraOrtho(camera);
+  setCameraOrtho(camera, scene);
   camera.lowerBetaLimit = camera.beta;
   camera.upperBetaLimit = camera.beta;
   camera.lowerAlphaLimit = camera.alpha;
@@ -26,7 +27,7 @@ async function setupCommon(scene) {
   camera.attachControl(canvas, true);
   scene.activeCamera = camera;
   scene.getEngine().onResizeObservable.add(function () {
-    setCameraOrtho(camera);
+    setCameraOrtho(camera, scene);
   });
 
   var sunLight = new BABYLON.PointLight("sunLight", new BABYLON.Vector3(0, 8, 0), scene);
@@ -35,20 +36,20 @@ async function setupCommon(scene) {
   fillLight.intensity = 0.55;
 
   var materials = {
-    sun: makeMat("sunMat", new BABYLON.Color3(1, 0.78, 0.08), true),
-    sunRing: makeMat("sunOrbitRingMat", new BABYLON.Color3(1, 0.82, 0.08), true, 0.85),
-    satellite: makeMat("satelliteMat", new BABYLON.Color3(0.9, 0.95, 1), true),
-    ring: makeMat("orbitRingMat", new BABYLON.Color3(0.05, 0.08, 0.18), false, 0.28),
-    upgradeRing: makeMat("upgradeOrbitRingMat", new BABYLON.Color3(1, 1, 1), true, 0.95),
-    jump: makeMat("jumpMat", new BABYLON.Color3(0.2, 0.9, 1), true),
-    stars: makeMat("starMat", new BABYLON.Color3(1, 1, 1), true),
-    asteroid: makeMat("asteroidMat", new BABYLON.Color3(0.46, 0.43, 0.38), false),
-    sentry: makeMat("sentryMat", new BABYLON.Color3(1, 0.05, 0.03), true),
-    sentryRing: makeMat("sentryRingMat", new BABYLON.Color3(1, 0.04, 0.03), false, 0.54),
-    hitParticle: makeMat("hitParticleMat", new BABYLON.Color3(0.96, 0.86, 0.58), true, 0.95),
-    bladeUpgrade: makeMat("bladeUpgradeMat", new BABYLON.Color3(0.18, 1, 0.92), true, 0.9),
-    bladeCore: makeMat("bladeCoreMat", new BABYLON.Color3(0.88, 1, 1), true, 1),
-    bladeGlow: makeMat("bladeGlowMat", new BABYLON.Color3(0.12, 0.9, 1), true, 0.38)
+    sun: makeMat(scene, "sunMat", new BABYLON.Color3(1, 0.78, 0.08), true),
+    sunRing: makeMat(scene, "sunOrbitRingMat", new BABYLON.Color3(1, 0.82, 0.08), true, 0.85),
+    satellite: makeMat(scene, "satelliteMat", new BABYLON.Color3(0.9, 0.95, 1), true),
+    ring: makeMat(scene, "orbitRingMat", new BABYLON.Color3(0.05, 0.08, 0.18), false, 0.28),
+    upgradeRing: makeMat(scene, "upgradeOrbitRingMat", new BABYLON.Color3(1, 1, 1), true, 0.95),
+    jump: makeMat(scene, "jumpMat", new BABYLON.Color3(0.2, 0.9, 1), true),
+    stars: makeMat(scene, "starMat", new BABYLON.Color3(1, 1, 1), true),
+    asteroid: makeMat(scene, "asteroidMat", new BABYLON.Color3(0.46, 0.43, 0.38), false),
+    sentry: makeMat(scene, "sentryMat", new BABYLON.Color3(1, 0.05, 0.03), true),
+    sentryRing: makeMat(scene, "sentryRingMat", new BABYLON.Color3(1, 0.04, 0.03), false, 0.54),
+    hitParticle: makeMat(scene, "hitParticleMat", new BABYLON.Color3(0.96, 0.86, 0.58), true, 0.95),
+    bladeUpgrade: makeMat(scene, "bladeUpgradeMat", new BABYLON.Color3(0.18, 1, 0.92), true, 0.9),
+    bladeCore: makeMat(scene, "bladeCoreMat", new BABYLON.Color3(0.88, 1, 1), true, 1),
+    bladeGlow: makeMat(scene, "bladeGlowMat", new BABYLON.Color3(0.12, 0.9, 1), true, 0.38)
   };
   materials.hitParticle.disableLighting = true;
   materials.bladeUpgrade.disableLighting = true;
@@ -57,43 +58,20 @@ async function setupCommon(scene) {
 
   makeStarField(scene, materials.stars);
 
-  var orbitPlaneY = 0.7;
-  var sunOrbitRadius = 2;
+  var orbitPlaneY = config.orbitPlaneY;
+  var sunOrbitRadius = config.sunOrbitRadius;
   var sun = BABYLON.MeshBuilder.CreateSphere("sun", { diameter: 2.15, segments: 32 }, scene);
   sun.material = materials.sun;
   sun.position.y = orbitPlaneY;
   var sunOrbitRing = createCircleLines("sunOrbitRing", sunOrbitRadius, materials.sunRing, scene);
   sunOrbitRing.position.y = orbitPlaneY;
 
-  var orbitSpecs = [
-    orbitSpec("amber", 3.6, 0.4, 0.82, new BABYLON.Color3(0.95, 0.63, 0.32)),
-    orbitSpec("blue", 5.6, 2.1, 0.88, new BABYLON.Color3(0.12, 0.62, 1)),
-    orbitSpec("rose", 7.9, 4.0, 0.94, new BABYLON.Color3(1, 0.35, 0.32)),
-    orbitSpec("mint", 10.6, 5.5, 1.0, new BABYLON.Color3(0.35, 0.95, 0.86)),
-    orbitSpec("violet", 13.7, 0.9, 1.06, new BABYLON.Color3(0.67, 0.45, 1)),
-    orbitSpec("copper", 17.2, 3.2, 1.12, new BABYLON.Color3(0.95, 0.45, 0.18)),
-    orbitSpec("lime", 21.1, 1.6, 1.18, new BABYLON.Color3(0.63, 1, 0.32)),
-    orbitSpec("ice", 25.4, 4.8, 1.24, new BABYLON.Color3(0.62, 0.86, 1)),
-    orbitSpec("opal", 30.1, 0.2, 1.3, new BABYLON.Color3(0.88, 0.78, 1))
-  ];
-  var outerReturnRingRadius = 38.2;
+  var orbitSpecs = config.orbitSpecs;
+  var outerReturnRingRadius = config.outerReturnRingRadius;
   var outerReturnRing = createCircleLines("outerReturnRing", outerReturnRingRadius, materials.sunRing, scene);
   outerReturnRing.position.y = orbitPlaneY;
   var planets = makePlanetsForOrbits(orbitSpecs);
-  var cubeSentrySpecs = [
-    { radius: 9.2, angle: 1.05, size: 0.42 },
-    { radius: 11.8, angle: 4.35, size: 1.05 },
-    { radius: 14.7, angle: 2.45, size: 0.58 },
-    { radius: 16.4, angle: 5.75, size: 1.85 },
-    { radius: 19.2, angle: 0.55, size: 0.38 },
-    { radius: 21.8, angle: 3.75, size: 2.15 },
-    { radius: 24.0, angle: 1.85, size: 0.82 },
-    { radius: 26.8, angle: 5.0, size: 2.45 },
-    { radius: 29.0, angle: 2.9, size: 1.25 },
-    { radius: 31.6, angle: 0.2, size: 1.95 }
-  ];
-
-  var faceMaterial, faceMaterialClone;
+  var cubeSentrySpecs = config.cubeSentrySpecs;
 
   await BABYLON.SceneLoader.ImportMeshAsync(
     "",
@@ -116,7 +94,7 @@ async function setupCommon(scene) {
   sun.face.rotation.y = Math.PI * .75;
 
   planets.forEach(async function (planet) {
-    planet.material = makeMat(planet.name + "Mat", planet.color, false);
+    planet.material = makeMat(scene, planet.name + "Mat", planet.color, false);
     planet.spinSpeed = randomPlanetSpinSpeed();
     planet.root = new BABYLON.TransformNode(planet.name + "Root", scene);
     planet.mesh = BABYLON.MeshBuilder.CreateSphere(planet.name, {
@@ -197,8 +175,8 @@ async function setupCommon(scene) {
     cameraTarget: BABYLON.Vector3.Zero(),
     desiredCameraTarget: BABYLON.Vector3.Zero(),
     asteroids: [],
-    initialAsteroidCount: 30,
-    initialReachableAsteroidCount: 10,
+    initialAsteroidCount: config.initialAsteroidCount,
+    initialReachableAsteroidCount: config.initialReachableAsteroidCount,
     particles: [],
     score: 0,
     scoreLabel: createScoreLabel(),
@@ -227,6 +205,26 @@ async function setupCommon(scene) {
       orbit: makeOuterClusterOrbit(asteroidIndex, outerClusterCount, asteroidClusterAngle)
     });
   }
+
+  var game = {
+    scene: scene,
+    canvas: canvas,
+    camera: camera,
+    config: config,
+    materials: materials,
+    state: state,
+    planets: planets,
+    sun: sun,
+    satelliteRoot: satelliteRoot,
+    aimSight: aimSight,
+    getOrbitPlaneY: function () {
+      return orbitPlaneY;
+    },
+    spawnAsteroid: spawnAsteroid,
+    createParticleBurst: createParticleBurst,
+    startCameraShake: startCameraShake
+  };
+  JuniperJam._setGame(game);
 
   window.addEventListener("keydown", function (event) {
     if (event.code !== "Space" || event.repeat || state.mode !== "orbiting") return;
@@ -271,17 +269,8 @@ async function setupCommon(scene) {
     updateLasers(dt);
     updateCameraShake(dt);
     updateCameraTarget(dt);
+    JuniperJam._runUpdate(dt);
   });
-
-  function orbitSpec(name, solarRadius, angle, satelliteOrbit, color) {
-    return {
-      name: name,
-      solarRadius: solarRadius,
-      angle: angle,
-      satelliteOrbit: satelliteOrbit,
-      color: color
-    };
-  }
 
   function makePlanetsForOrbits(orbits) {
     var planetsForOrbits = [];
@@ -350,42 +339,6 @@ async function setupCommon(scene) {
     return Math.random() < 0.35
       ? 2.4 + Math.random() * 2.2
       : 0.55 + Math.random() * 0.9;
-  }
-
-  function setCameraOrtho(camera) {
-    var engine = scene.getEngine();
-    var aspect = engine.getRenderWidth() / engine.getRenderHeight();
-    var verticalSize = 12;
-    camera.orthoTop = verticalSize * 0.5;
-    camera.orthoBottom = verticalSize * -0.5;
-    camera.orthoLeft = verticalSize * aspect * -0.5;
-    camera.orthoRight = verticalSize * aspect * 0.5;
-  }
-
-  function makeMat(name, color, emissive, alpha) {
-    var material = new BABYLON.StandardMaterial(name, scene);
-    material.diffuseColor = color;
-    material.emissiveColor = emissive ? color : color.scale(0.22);
-    material.specularColor = new BABYLON.Color3(0.12, 0.12, 0.12);
-    if (alpha !== undefined) {
-      material.alpha = alpha;
-    }
-    return material;
-  }
-
-  function createCircleLines(name, radius, material, scene) {
-    var points = [];
-    var segments = 144;
-    for (var i = 0; i <= segments; i += 1) {
-      var angle = (i / segments) * Math.PI * 2;
-      points.push(new BABYLON.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
-    }
-
-    var lines = BABYLON.MeshBuilder.CreateLines(name, { points: points }, scene);
-    lines.color = material.diffuseColor;
-    lines.alpha = material.alpha || 1;
-    lines.isPickable = false;
-    return lines;
   }
 
   function createBladeUpgrade(planet, scene) {
@@ -519,8 +472,8 @@ async function setupCommon(scene) {
       size: size,
       baseFireRadius: baseFireRadius,
       fireRadius: baseFireRadius,
-      baseChaseSpeed: 1.85,
-      chaseSpeed: 1.85,
+      baseChaseSpeed: config.sentryBaseChaseSpeed,
+      chaseSpeed: config.sentryBaseChaseSpeed,
       isChasing: false,
       specIndex: index,
       spawnFade: 0,
@@ -552,25 +505,17 @@ async function setupCommon(scene) {
 
   function updateCubeSentryDifficulty(sentry) {
     sentry.fireRadius = sentry.baseFireRadius;
-    sentry.chaseSpeed = sentry.baseChaseSpeed * getSentrySpeedMultiplier();
+    sentry.chaseSpeed = sentry.baseChaseSpeed * JuniperDifficulty.sentrySpeedMultiplier(state, config);
     sentry.dangerRing.scaling.x = 1;
     sentry.dangerRing.scaling.z = 1;
   }
 
-  function getDifficultyPressure() {
-    return Math.min(1, state.difficultyTime / 150 + state.enemyScore / 25);
-  }
-
-  function getSentrySpeedMultiplier() {
-    return 1 + getDifficultyPressure() * 1.2;
-  }
-
   function getAsteroidHealAmount() {
-    return lerpValue(4, 1.5, getDifficultyPressure());
+    return JuniperDifficulty.asteroidHealAmount(state, config);
   }
 
   function getAsteroidFragmentCount() {
-    return Math.max(1, 3 - Math.floor(getDifficultyPressure() * 2.99));
+    return JuniperDifficulty.asteroidFragmentCount(state, config);
   }
 
   function updateCubeSentryChase(sentry, dt) {
@@ -1663,31 +1608,6 @@ async function setupCommon(scene) {
     satelliteRoot.rotation.y = Math.atan2(flatDirection.x, flatDirection.z);
   }
 
-  function easeInOut(progress) {
-    return progress * progress * (3 - 2 * progress);
-  }
-
-  function lerpValue(start, end, progress) {
-    return start + (end - start) * progress;
-  }
-
-  function lerpCounterClockwiseAngle(start, end, progress) {
-    return start + counterClockwiseAngleDelta(start, end) * progress;
-  }
-
-  function counterClockwiseAngleDelta(start, end) {
-    var delta = (end - start) % (Math.PI * 2);
-    if (delta > 0) delta -= Math.PI * 2;
-    return delta;
-  }
-
-  function shortestAngleDelta(start, end) {
-    var delta = (end - start) % (Math.PI * 2);
-    if (delta > Math.PI) delta -= Math.PI * 2;
-    if (delta < -Math.PI) delta += Math.PI * 2;
-    return delta;
-  }
-
   function getBladePoint(distance) {
     var direction = getOutwardDirection();
     return new BABYLON.Vector3(
@@ -1695,21 +1615,6 @@ async function setupCommon(scene) {
       orbitPlaneY,
       satelliteRoot.position.z + direction.z * distance
     );
-  }
-
-  function distancePointToSegmentSquared(point, segmentStart, segmentEnd) {
-    var segmentX = segmentEnd.x - segmentStart.x;
-    var segmentZ = segmentEnd.z - segmentStart.z;
-    var pointX = point.x - segmentStart.x;
-    var pointZ = point.z - segmentStart.z;
-    var segmentLengthSquared = segmentX * segmentX + segmentZ * segmentZ;
-    var t = segmentLengthSquared > 0 ? (pointX * segmentX + pointZ * segmentZ) / segmentLengthSquared : 0;
-    t = Math.max(0, Math.min(1, t));
-    var closestX = segmentStart.x + segmentX * t;
-    var closestZ = segmentStart.z + segmentZ * t;
-    var dx = point.x - closestX;
-    var dz = point.z - closestZ;
-    return dx * dx + dz * dz;
   }
 
   function getOutwardDirection() {
