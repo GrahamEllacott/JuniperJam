@@ -186,6 +186,7 @@ async function setupCommon(scene) {
     maxShipHealth: 100,
     sentryDamagePerHit: 5,
     sentryHitCooldown: 0,
+    difficultyTime: 0,
     damageFlashTime: 0,
     damageFlashDuration: 0.18,
     satelliteFlashMaterials: captureFlashMaterials(satelliteMeshes),
@@ -241,6 +242,9 @@ async function setupCommon(scene) {
 
   scene.onBeforeRenderObservable.add(function () {
     var dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
+    if (state.mode !== "destroyed") {
+      state.difficultyTime += dt;
+    }
     updatePlanets(dt);
     updateCubeSentries(dt);
     updateCubeSentryRespawns(dt);
@@ -486,7 +490,7 @@ async function setupCommon(scene) {
   function spawnCubeSentry(spec, index) {
     var root = new BABYLON.TransformNode("cubeSentryRoot" + index, scene);
     var size = spec.size || 1;
-    var fireRadius = getSentryFireRadius(size);
+    var baseFireRadius = getBaseSentryFireRadius(size);
     var cube = BABYLON.MeshBuilder.CreatePolyhedron("cubeSentry" + index, {
       type: 0,
       size: size
@@ -501,7 +505,7 @@ async function setupCommon(scene) {
     cube.rotation.z = Math.PI * 0.08;
     cube.isPickable = false;
 
-    var dangerRing = createCircleLines("cubeSentryDangerOrbit" + index, fireRadius, materials.sentryRing, scene);
+    var dangerRing = createCircleLines("cubeSentryDangerOrbit" + index, baseFireRadius, materials.sentryRing, scene);
     dangerRing.parent = root;
     dangerRing.position.y = orbitPlaneY;
     dangerRing.alpha = 0;
@@ -513,7 +517,9 @@ async function setupCommon(scene) {
       radius: spec.radius,
       angle: spec.angle,
       size: size,
-      fireRadius: fireRadius,
+      baseFireRadius: baseFireRadius,
+      fireRadius: baseFireRadius,
+      baseChaseSpeed: 1.85,
       chaseSpeed: 1.85,
       isChasing: false,
       specIndex: index,
@@ -521,16 +527,18 @@ async function setupCommon(scene) {
       spawnFadeDuration: 0.7,
       laser: null
     };
+    updateCubeSentryDifficulty(sentry);
     state.cubeSentries.push(sentry);
     placeCubeSentry(sentry);
   }
 
-  function getSentryFireRadius(size) {
+  function getBaseSentryFireRadius(size) {
     return 2.5 + size * size * 1.35;
   }
 
   function updateCubeSentries(dt) {
     state.cubeSentries.forEach(function (sentry) {
+      updateCubeSentryDifficulty(sentry);
       if (sentry.spawnFade < sentry.spawnFadeDuration) {
         sentry.spawnFade = Math.min(sentry.spawnFadeDuration, sentry.spawnFade + dt);
         updateCubeSentryFade(sentry);
@@ -540,6 +548,29 @@ async function setupCommon(scene) {
       sentry.cube.rotation.z = Math.PI * 0.08;
       updateCubeSentryChase(sentry, dt);
     });
+  }
+
+  function updateCubeSentryDifficulty(sentry) {
+    sentry.fireRadius = sentry.baseFireRadius;
+    sentry.chaseSpeed = sentry.baseChaseSpeed * getSentrySpeedMultiplier();
+    sentry.dangerRing.scaling.x = 1;
+    sentry.dangerRing.scaling.z = 1;
+  }
+
+  function getDifficultyPressure() {
+    return Math.min(1, state.difficultyTime / 150 + state.enemyScore / 25);
+  }
+
+  function getSentrySpeedMultiplier() {
+    return 1 + getDifficultyPressure() * 1.2;
+  }
+
+  function getAsteroidHealAmount() {
+    return lerpValue(4, 1.5, getDifficultyPressure());
+  }
+
+  function getAsteroidFragmentCount() {
+    return Math.max(1, 3 - Math.floor(getDifficultyPressure() * 2.99));
   }
 
   function updateCubeSentryChase(sentry, dt) {
@@ -904,7 +935,7 @@ async function setupCommon(scene) {
   function healShipFromAsteroidSlice() {
     if (state.shipHealth >= state.maxShipHealth) return;
 
-    state.shipHealth = Math.min(state.maxShipHealth, state.shipHealth + 4);
+    state.shipHealth = Math.min(state.maxShipHealth, state.shipHealth + getAsteroidHealAmount());
     updateHealthBar();
   }
 
@@ -1180,7 +1211,8 @@ async function setupCommon(scene) {
     disposeAsteroid(asteroid);
     if (asteroid.breakLevel >= 2) return;
 
-    for (var i = 0; i < 3; i += 1) {
+    var fragmentCount = getAsteroidFragmentCount();
+    for (var i = 0; i < fragmentCount; i += 1) {
       var fragmentOptions = {
         breakLevel: nextBreakLevel,
         radius: asteroid.radius * 0.38,
@@ -1407,6 +1439,7 @@ async function setupCommon(scene) {
   function handleShipDeathCounters() {
     state.score = 0;
     state.enemyScore = 0;
+    state.difficultyTime = 0;
     updateScoreLabel();
     updateEnemyScoreLabel();
   }
