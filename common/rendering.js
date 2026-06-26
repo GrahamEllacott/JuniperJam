@@ -8,11 +8,13 @@ function setCameraOrtho(camera, scene) {
   camera.orthoRight = verticalSize * aspect * 0.5;
 }
 
-function makeMat(scene, name, color, emissive, alpha) {
+function makeMat(scene, name, color, emissive, alpha, specularColor) {
   var material = new BABYLON.StandardMaterial(name, scene);
   material.diffuseColor = color;
   material.emissiveColor = emissive ? color : color.scale(0.22);
-  material.specularColor = new BABYLON.Color3(0.12, 0.12, 0.12);
+  if (specularColor) {
+    material.specularColor = specularColor;
+  }
   if (alpha !== undefined) {
     material.alpha = alpha;
   }

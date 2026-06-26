@@ -1,6 +1,7 @@
 async function setupCommon(scene) {
   var config = createJuniperConfig();
-  scene.clearColor = new BABYLON.Color4(0.01, 0.01, 0.035, 1);
+  var colors = config.colors;
+  scene.clearColor = colors.sceneClear;
   scene.gravity = BABYLON.Vector3.Zero();
   scene.collisionsEnabled = false;
 
@@ -35,21 +36,25 @@ async function setupCommon(scene) {
   var fillLight = new BABYLON.HemisphericLight("softFill", new BABYLON.Vector3(0, 1, 0), scene);
   fillLight.intensity = 0.55;
 
+  function makeGameMat(name, color, emissive, alpha) {
+    return makeMat(scene, name, color, emissive, alpha, colors.materialSpecular);
+  }
+
   var materials = {
-    sun: makeMat(scene, "sunMat", new BABYLON.Color3(1, 0.78, 0.08), true),
-    sunRing: makeMat(scene, "sunOrbitRingMat", new BABYLON.Color3(1, 0.82, 0.08), true, 0.85),
-    satellite: makeMat(scene, "satelliteMat", new BABYLON.Color3(0.9, 0.95, 1), true),
-    ring: makeMat(scene, "orbitRingMat", new BABYLON.Color3(1, 1, 1), false, 0.32),
-    upgradeRing: makeMat(scene, "upgradeOrbitRingMat", new BABYLON.Color3(1, 1, 1), false, 0.48),
-    jump: makeMat(scene, "jumpMat", new BABYLON.Color3(0.2, 0.9, 1), true),
-    stars: makeMat(scene, "starMat", new BABYLON.Color3(1, 1, 1), true),
-    asteroid: makeMat(scene, "asteroidMat", new BABYLON.Color3(0.46, 0.43, 0.38), false),
-    sentry: makeMat(scene, "sentryMat", new BABYLON.Color3(1, 0.05, 0.03), true),
-    sentryRing: makeMat(scene, "sentryRingMat", new BABYLON.Color3(1, 0.04, 0.03), false, 0.54),
-    hitParticle: makeMat(scene, "hitParticleMat", new BABYLON.Color3(0.96, 0.86, 0.58), true, 0.95),
-    bladeUpgrade: makeMat(scene, "bladeUpgradeMat", new BABYLON.Color3(0.18, 1, 0.92), true, 0.9),
-    bladeCore: makeMat(scene, "bladeCoreMat", new BABYLON.Color3(0.88, 1, 1), true, 1),
-    bladeGlow: makeMat(scene, "bladeGlowMat", new BABYLON.Color3(0.12, 0.9, 1), true, 0.38)
+    sun: makeGameMat("sunMat", colors.sun, true),
+    sunRing: makeGameMat("sunOrbitRingMat", colors.sunRing, true, 0.85),
+    satellite: makeGameMat("satelliteMat", colors.satellite, true),
+    ring: makeGameMat("orbitRingMat", colors.orbitRing, false, 0.32),
+    upgradeRing: makeGameMat("upgradeOrbitRingMat", colors.upgradeRing, false, 0.48),
+    jump: makeGameMat("jumpMat", colors.jump, true),
+    stars: makeGameMat("starMat", colors.stars, true),
+    asteroid: makeGameMat("asteroidMat", colors.asteroid, false),
+    sentry: makeGameMat("sentryMat", colors.sentry, true),
+    sentryRing: makeGameMat("sentryRingMat", colors.sentryRing, false, 0.54),
+    hitParticle: makeGameMat("hitParticleMat", colors.hitParticle, true, 0.95),
+    bladeUpgrade: makeGameMat("bladeUpgradeMat", colors.bladeUpgrade, true, 0.9),
+    bladeCore: makeGameMat("bladeCoreMat", colors.bladeCore, true, 1),
+    bladeGlow: makeGameMat("bladeGlowMat", colors.bladeGlow, true, 0.38)
   };
   materials.hitParticle.disableLighting = true;
   materials.bladeUpgrade.disableLighting = true;
@@ -68,7 +73,7 @@ async function setupCommon(scene) {
 
   var orbitSpecs = config.orbitSpecs;
   var outerReturnRingRadius = config.outerReturnRingRadius;
-  var outerReturnRing = createCircleLines("outerReturnRing", outerReturnRingRadius, materials.ring, scene);
+  var outerReturnRing = createCircleLines("outerReturnRing", outerReturnRingRadius, materials.sunRing, scene);
   outerReturnRing.position.y = orbitPlaneY;
   var planets = makePlanetsForOrbits(orbitSpecs);
   var cubeSentrySpecs = config.cubeSentrySpecs;
@@ -111,7 +116,7 @@ async function setupCommon(scene) {
   sun.face.renderingGroupId = 1;
 
   planets.forEach(async function (planet) {
-    planet.material = makeMat(scene, planet.name + "Mat", planet.color, false);
+    planet.material = makeGameMat(planet.name + "Mat", planet.color, false);
     planet.spinSpeed = randomPlanetSpinSpeed();
     planet.root = new BABYLON.TransformNode(planet.name + "Root", scene);
     planet.mesh = BABYLON.MeshBuilder.CreateSphere(planet.name, {
@@ -130,12 +135,13 @@ async function setupCommon(scene) {
     planet.captureRing = createCircleLines(
       planet.name + "CaptureOrbit",
       planet.satelliteOrbit,
-      planet.hasBladeUpgrade ? materials.upgradeRing : materials.ring,
+      materials.ring,
       scene
     );
     planet.captureRing.parent = planet.root;
     planet.captureRing.position.y = orbitPlaneY;
     if (planet.hasBladeUpgrade && planet.orbitIndex !== 0) {
+      planet.captureRing.setEnabled(false);
       planet.bladeUpgrade = createBladeUpgrade(planet, scene);
     }
 
@@ -176,11 +182,13 @@ async function setupCommon(scene) {
     superBladeThickness: 2.6,
     superBladeTime: 0,
     superBladeDuration: 8,
+    superBladePlanet: null,
     furthestPlanetReached: 0,
     velocity: BABYLON.Vector3.Zero(),
     captureTransition: null,
     cubeSentries: [],
     sentryRespawns: [],
+    nextSentryId: 0,
     lasers: [],
     deathTimer: 0,
     shipHealth: 100,
@@ -298,7 +306,7 @@ async function setupCommon(scene) {
   function makePlanetsForOrbits(orbits) {
     var planetsForOrbits = [];
     orbits.forEach(function (orbit, orbitIndex) {
-      var planetsInOrbit = getPlanetCountForRadius(orbit.solarRadius);
+      var planetsInOrbit = orbit.planetCount || getPlanetCountForRadius(orbit.solarRadius);
       var orbitSpeed = alternatingPlanetSpeed(orbitIndex, orbit.solarRadius);
 
       for (var i = 0; i < planetsInOrbit; i += 1) {
@@ -351,6 +359,10 @@ async function setupCommon(scene) {
       && planet.orbitIndex % 3 === 1;
   }
 
+  function canPlanetHaveBladeUpgrade(planet) {
+    return planet.orbitIndex > 0;
+  }
+
   function alternatingPlanetSpeed(index, radius) {
     var normalSpeed = 0.42;
     var distanceScale = Math.max(0.28, 1 - radius / 42);
@@ -366,9 +378,9 @@ async function setupCommon(scene) {
 
   function createBladeUpgrade(planet, scene) {
     var points = [];
-    var radius = planet.size * 0.72;
-    for (var i = 0; i <= 5; i += 1) {
-      var angle = -Math.PI / 2 + (i / 5) * Math.PI * 2;
+    var radius = planet.satelliteOrbit;
+    for (var i = 0; i <= 6; i += 1) {
+      var angle = -Math.PI / 2 + (i / 6) * Math.PI * 2;
       points.push(new BABYLON.Vector3(
         Math.cos(angle) * radius,
         0,
@@ -463,25 +475,37 @@ async function setupCommon(scene) {
     });
   }
 
+  function resetCubeSentries() {
+    state.sentryRespawns = [];
+    for (var i = state.cubeSentries.length - 1; i >= 0; i -= 1) {
+      disposeCubeSentry(state.cubeSentries[i]);
+    }
+    state.cubeSentries = [];
+    state.nextSentryId = 0;
+    createCubeSentries();
+  }
+
   function spawnCubeSentry(spec, index) {
-    var root = new BABYLON.TransformNode("cubeSentryRoot" + index, scene);
+    var instanceId = state.nextSentryId;
+    state.nextSentryId += 1;
+    var root = new BABYLON.TransformNode("cubeSentryRoot" + instanceId, scene);
     var size = spec.size || 1;
     var baseFireRadius = getBaseSentryFireRadius(size);
-    var cube = BABYLON.MeshBuilder.CreatePolyhedron("cubeSentry" + index, {
+    var cube = BABYLON.MeshBuilder.CreatePolyhedron("cubeSentry" + instanceId, {
       type: 0,
       size: size
     }, scene);
     cube.parent = root;
-    cube.material = materials.sentry.clone("sentryMatInstance" + index);
+    cube.material = materials.sentry.clone("sentryMatInstance" + instanceId);
     cube.material.emissiveColor = cube.material.diffuseColor.scale(0.28);
-    cube.material.specularColor = new BABYLON.Color3(0.7, 0.18, 0.14);
+    cube.material.specularColor = colors.sentrySpecular;
     cube.material.alpha = 0;
     cube.rotation.x = Math.PI * 0.16;
     cube.rotation.y = Math.PI * 0.25;
     cube.rotation.z = Math.PI * 0.08;
     cube.isPickable = false;
 
-    var dangerRing = createCircleLines("cubeSentryDangerOrbit" + index, baseFireRadius, materials.sentryRing, scene);
+    var dangerRing = createCircleLines("cubeSentryDangerOrbit" + instanceId, baseFireRadius, materials.sentryRing, scene);
     dangerRing.parent = root;
     dangerRing.position.y = orbitPlaneY;
     dangerRing.alpha = 0;
@@ -492,6 +516,19 @@ async function setupCommon(scene) {
       dangerRing: dangerRing,
       radius: spec.radius,
       angle: spec.angle,
+      homePosition: new BABYLON.Vector3(
+        Math.cos(spec.angle) * spec.radius,
+        orbitPlaneY,
+        Math.sin(spec.angle) * spec.radius
+      ),
+      driftPhase: Math.random() * Math.PI * 2,
+      driftSpeed: config.sentryDriftSpeed * (0.75 + Math.random() * 0.5),
+      driftWobble: config.sentryDriftWobble * (0.75 + Math.random() * 0.5),
+      driftVelocity: new BABYLON.Vector3(
+        (Math.random() - 0.5) * config.sentryDriftSpeed,
+        0,
+        (Math.random() - 0.5) * config.sentryDriftSpeed
+      ),
       size: size,
       baseFireRadius: baseFireRadius,
       fireRadius: baseFireRadius,
@@ -499,6 +536,7 @@ async function setupCommon(scene) {
       chaseSpeed: config.sentryBaseChaseSpeed,
       isChasing: false,
       specIndex: index,
+      instanceId: instanceId,
       spawnFade: 0,
       spawnFadeDuration: 0.7,
       laser: null
@@ -522,6 +560,7 @@ async function setupCommon(scene) {
       sentry.cube.rotation.x = Math.PI * 0.16;
       sentry.cube.rotation.y += dt * 1.45;
       sentry.cube.rotation.z = Math.PI * 0.08;
+      updateCubeSentryDrift(sentry, dt);
       updateCubeSentryChase(sentry, dt);
     });
   }
@@ -539,6 +578,28 @@ async function setupCommon(scene) {
 
   function getAsteroidFragmentCount() {
     return JuniperDifficulty.asteroidFragmentCount(state, config);
+  }
+
+  function updateCubeSentryDrift(sentry, dt) {
+    sentry.driftPhase += sentry.driftSpeed * dt;
+
+    if (sentry.isChasing) return;
+
+    var wander = new BABYLON.Vector3(
+      Math.cos(sentry.driftPhase * 1.7),
+      0,
+      Math.sin(sentry.driftPhase * 1.13)
+    ).scale(sentry.driftSpeed * dt);
+    var homePull = sentry.homePosition.subtract(sentry.root.position).scale(0.18 * dt);
+
+    sentry.driftVelocity.addInPlace(wander);
+    sentry.driftVelocity.addInPlace(homePull);
+    if (sentry.driftVelocity.length() > sentry.driftSpeed) {
+      sentry.driftVelocity.normalize().scaleInPlace(sentry.driftSpeed);
+    }
+
+    sentry.root.position.addInPlace(sentry.driftVelocity.scale(dt));
+    sentry.root.position.y = orbitPlaneY;
   }
 
   function updateCubeSentryChase(sentry, dt) {
@@ -572,12 +633,36 @@ async function setupCommon(scene) {
         state.sentryRespawns.splice(i, 1);
       }
     }
+    queueExtraSentryRespawnsIfNeeded();
+  }
+
+  function queueSentryRespawn(specIndex) {
+    state.sentryRespawns.push({
+      specIndex: specIndex,
+      time: config.sentryRespawnMinTime
+        + Math.random() * (config.sentryRespawnMaxTime - config.sentryRespawnMinTime)
+    });
+  }
+
+  function queueExtraSentryRespawnsIfNeeded() {
+    var targetCount = getTargetSentryCount();
+    var queuedAndActiveCount = state.cubeSentries.length + state.sentryRespawns.length;
+
+    while (queuedAndActiveCount < targetCount) {
+      queueSentryRespawn(Math.floor(Math.random() * cubeSentrySpecs.length));
+      queuedAndActiveCount += 1;
+    }
+  }
+
+  function getTargetSentryCount() {
+    return cubeSentrySpecs.length + Math.min(
+      config.sentryMaxExtraSpawns,
+      Math.floor(state.enemyScore / config.sentryKillsPerExtraSpawn)
+    );
   }
 
   function placeCubeSentry(sentry) {
-    sentry.root.position.x = Math.cos(sentry.angle) * sentry.radius;
-    sentry.root.position.y = orbitPlaneY;
-    sentry.root.position.z = Math.sin(sentry.angle) * sentry.radius;
+    sentry.root.position.copyFrom(sentry.homePosition);
   }
 
   function disposeCubeSentry(sentry) {
@@ -734,7 +819,11 @@ async function setupCommon(scene) {
   }
 
   function updateBladeLengthVisual(dt) {
+    var hadSuperBlade = state.superBladeTime > 0;
     state.superBladeTime = Math.max(0, state.superBladeTime - dt);
+    if (hadSuperBlade && state.superBladeTime <= 0) {
+      finishSuperBladePowerup();
+    }
     var targetLength = getTargetBladeLength();
     var bladeThickness = state.superBladeTime > 0 ? state.superBladeThickness : 1;
     state.displayedBladeLength = targetLength;
@@ -875,13 +964,12 @@ async function setupCommon(scene) {
   function hitCubeSentry(sentry, sentryIndex) {
     state.enemyScore += 1;
     updateEnemyScoreLabel();
+    updateBladeUpgradeAvailability();
     startCameraShake(0.42);
     createParticleBurst(sentry.root.position, 1.2);
     state.cubeSentries.splice(sentryIndex, 1);
-    state.sentryRespawns.push({
-      specIndex: sentry.specIndex,
-      time: 5.5 + Math.random() * 2.5
-    });
+    queueSentryRespawn(sentry.specIndex);
+    queueExtraSentryRespawnsIfNeeded();
     disposeCubeSentry(sentry);
   }
 
@@ -939,7 +1027,7 @@ async function setupCommon(scene) {
       particle.position.y = orbitPlaneY + (Math.random() - 0.5) * 0.3;
       particle.rotation.x = Math.PI / 2;
       particle.rotation.z = Math.random() * Math.PI;
-      particle.material = makeSparkMaterial("hitParticleMatInstance", new BABYLON.Color3(1, 1, 1), 0.95);
+      particle.material = makeSparkMaterial("hitParticleMatInstance", colors.sparkStart, 0.95);
       particle.isPickable = false;
 
       state.particles.push({
@@ -965,8 +1053,8 @@ async function setupCommon(scene) {
       var progress = particle.age / particle.lifetime;
       var colorProgress = Math.max(0, (progress - 0.18) / 0.55);
       var sparkColor = BABYLON.Color3.Lerp(
-        new BABYLON.Color3(1, 1, 1),
-        new BABYLON.Color3(1, 0.78, 0.08),
+        colors.sparkStart,
+        colors.sparkEnd,
         Math.min(colorProgress, 1)
       );
       particle.mesh.scaling.setAll(particle.startScale * (1 + progress * 1.4));
@@ -992,7 +1080,7 @@ async function setupCommon(scene) {
       points: points,
       updatable: true
     }, scene);
-    laser.color = new BABYLON.Color3(1, 0.05, 0.03);
+    laser.color = colors.laser;
     laser.alpha = 1;
     laser.isPickable = false;
 
@@ -1019,8 +1107,8 @@ async function setupCommon(scene) {
 
       var flash = Math.sin(laser.age * 95) > 0 ? 1 : 0;
       laser.mesh.color = flash
-        ? new BABYLON.Color3(1, 0.94, 0.45)
-        : new BABYLON.Color3(1, 0.05, 0.03);
+        ? colors.laserFlash
+        : colors.laser;
       laser.mesh.alpha = Math.max(0, 1 - progress * 0.55);
 
       if (laser.age >= laser.lifetime) {
@@ -1085,7 +1173,7 @@ async function setupCommon(scene) {
     label.style.position = "fixed";
     label.style.left = "16px";
     label.style.top = top + "px";
-    label.style.color = "white";
+    label.style.color = colors.hudText;
     label.style.font = "600 18px Arial, sans-serif";
     label.style.letterSpacing = "0";
     label.style.pointerEvents = "none";
@@ -1158,7 +1246,7 @@ async function setupCommon(scene) {
   }
 
   function applyShipDamageFlash(amount) {
-    var white = new BABYLON.Color3(1, 1, 1);
+    var white = colors.damageFlash;
     state.satelliteFlashMaterials.forEach(function (entry) {
       if (entry.diffuse && entry.material.diffuseColor) {
         entry.material.diffuseColor = BABYLON.Color3.Lerp(entry.diffuse, white, amount);
@@ -1408,6 +1496,7 @@ async function setupCommon(scene) {
     state.score = 0;
     state.enemyScore = 0;
     state.difficultyTime = 0;
+    resetCubeSentries();
     updateScoreLabel();
     updateEnemyScoreLabel();
   }
@@ -1497,10 +1586,10 @@ async function setupCommon(scene) {
     planet.bladeUpgrade.dispose();
     planet.bladeUpgrade = null;
     planet.mesh.setEnabled(true);
-    planet.captureRing.color = materials.ring.diffuseColor.clone();
-    planet.captureRing.alpha = materials.ring.alpha !== undefined ? materials.ring.alpha : 1;
+    planet.captureRing.setEnabled(true);
+    setPlanetCaptureRingSuper(planet);
     planet.bladeUpgradeRespawnTime = 18 + Math.random() * 10;
-    startSuperBladePowerup();
+    startSuperBladePowerup(planet);
     startCameraShake(0.18);
   }
 
@@ -1512,9 +1601,62 @@ async function setupCommon(scene) {
     if (isCurrentAttachedPlanet(planet)) return;
 
     planet.bladeUpgradeRespawnTime = 0;
+    planet.captureRing.setEnabled(false);
     planet.bladeUpgrade = createBladeUpgrade(planet, scene);
-    planet.captureRing.color = materials.upgradeRing.diffuseColor.clone();
-    planet.captureRing.alpha = materials.upgradeRing.alpha !== undefined ? materials.upgradeRing.alpha : 1;
+  }
+
+  function updateBladeUpgradeAvailability() {
+    var targetCount = getTargetBladeUpgradePlanetCount();
+    var enabledCount = 0;
+
+    planets.forEach(function (planet) {
+      if (planet.hasBladeUpgrade) {
+        enabledCount += 1;
+      }
+    });
+
+    if (enabledCount >= targetCount) return;
+
+    for (var i = planets.length - 1; i >= 0 && enabledCount < targetCount; i -= 1) {
+      var planet = planets[i];
+      if (!canPlanetHaveBladeUpgrade(planet) || planet.hasBladeUpgrade) continue;
+
+      planet.hasBladeUpgrade = true;
+      enabledCount += 1;
+
+      if (!isCurrentAttachedPlanet(planet)) {
+        planet.captureRing.setEnabled(false);
+        planet.bladeUpgradeRespawnTime = 0;
+        planet.bladeUpgrade = createBladeUpgrade(planet, scene);
+      }
+    }
+  }
+
+  function getTargetBladeUpgradePlanetCount() {
+    return getBaseBladeUpgradePlanetCount() + Math.min(
+      config.bladeUpgradeMaxExtraPowerups,
+      Math.floor(state.enemyScore / config.bladeUpgradeKillsPerExtraPowerup)
+    );
+  }
+
+  function getBaseBladeUpgradePlanetCount() {
+    var count = 0;
+    planets.forEach(function (planet) {
+      if (shouldSpawnBladeUpgrade(planet)) {
+        count += 1;
+      }
+    });
+    return count;
+  }
+
+  function setPlanetCaptureRingNormal(planet) {
+    planet.captureRing.color = materials.ring.diffuseColor.clone();
+    planet.captureRing.alpha = materials.ring.alpha !== undefined ? materials.ring.alpha : 1;
+  }
+
+  function setPlanetCaptureRingSuper(planet) {
+    planet.captureRing.color = materials.bladeUpgrade.diffuseColor.clone();
+    planet.captureRing.alpha = materials.bladeUpgrade.alpha !== undefined ? materials.bladeUpgrade.alpha : 1;
   }
 
   function isCurrentAttachedPlanet(planet) {
@@ -1523,8 +1665,19 @@ async function setupCommon(scene) {
       && planets[state.currentPlanet] === planet;
   }
 
-  function startSuperBladePowerup() {
+  function startSuperBladePowerup(planet) {
+    if (state.superBladePlanet && state.superBladePlanet !== planet && state.superBladePlanet.captureRing) {
+      setPlanetCaptureRingNormal(state.superBladePlanet);
+    }
+    state.superBladePlanet = planet;
     state.superBladeTime = state.superBladeDuration;
+  }
+
+  function finishSuperBladePowerup() {
+    if (state.superBladePlanet && state.superBladePlanet.captureRing) {
+      setPlanetCaptureRingNormal(state.superBladePlanet);
+    }
+    state.superBladePlanet = null;
   }
 
   function captureSentry(index, offset) {
