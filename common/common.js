@@ -836,6 +836,7 @@ async function setupCommon(scene) {
     state.escapedSun = state.currentOrbitKind === "sun";
     state.escapedSentry = state.currentOrbitKind === "sentry" ? state.currentSentry : null;
     state.velocity = direction.scale(9.5);
+    Sound.play("rocket");
   }
 
   function launchIfOrbiting() {
@@ -1005,6 +1006,7 @@ async function setupCommon(scene) {
     queueSentryRespawn(sentry.specIndex);
     queueExtraSentryRespawnsIfNeeded();
     disposeCubeSentry(sentry);
+    Sound.play("small_explosion");
   }
 
   function disposeAsteroid(asteroid) {
@@ -1019,6 +1021,7 @@ async function setupCommon(scene) {
     createParticleBurst(asteroid.root.position, asteroid.radius);
     state.asteroids.splice(asteroidIndex, 1);
     breakAsteroid(asteroid);
+    Sound.play("small_explosion");
   }
 
   function healShipFromAsteroidSlice() {
@@ -1124,6 +1127,7 @@ async function setupCommon(scene) {
       lifetime: 0.22
     };
     state.lasers.push(sentry.laser);
+    Sound.play("shoot");
   }
 
   function updateLasers(dt) {
@@ -1586,6 +1590,7 @@ async function setupCommon(scene) {
     state.escapedPlanet = null;
     state.escapedSun = false;
     satelliteRoot.setEnabled(false);
+    Sound.play("big_explosion");
   }
 
   function handleShipDeathCounters() {
@@ -1767,6 +1772,7 @@ async function setupCommon(scene) {
     }
     state.superBladePlanet = planet;
     state.superBladeTime = state.superBladeDuration;
+    Sound.play("laser_blade");
   }
 
   function finishSuperBladePowerup() {
