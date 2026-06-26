@@ -38,6 +38,12 @@ function createJuniperConfig() {
 
   return {
     colors: colors,
+    useTiltedCamera: true,
+    cameraAlpha: -Math.PI / 4,
+    cameraTopDownBeta: 0.001,
+    cameraTiltedBeta: 0.001,
+    cameraRadius: 32,
+    cameraPerspectiveFov: 0.5,
     orbitPlaneY: 0.7,
     sunOrbitRadius: 2,
     outerReturnRingRadius: 18.8,
@@ -49,6 +55,8 @@ function createJuniperConfig() {
     sentrySpeedDifficultyBoost: 1.2,
     sentryDriftSpeed: 0.85,
     sentryDriftWobble: 2.8,
+    sentrySeparationRadius: 2.8,
+    sentrySeparationStrength: 1.4,
     sentryKillsPerExtraSpawn: 3,
     sentryMaxExtraSpawns: 100,
     sentryRespawnMinTime: 5.5,

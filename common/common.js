@@ -11,16 +11,22 @@ async function setupCommon(scene) {
   }
 
   var canvas = scene.getEngine().getRenderingCanvas();
+  var cameraBeta = config.useTiltedCamera ? config.cameraTiltedBeta : config.cameraTopDownBeta;
   var camera = new BABYLON.ArcRotateCamera(
     "isometricCamera",
-    -Math.PI / 4,
-    0.001,
-    44,
+    config.cameraAlpha,
+    cameraBeta,
+    config.cameraRadius,
     BABYLON.Vector3.Zero(),
     scene
   );
-  camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
-  setCameraOrtho(camera, scene);
+  if (config.useTiltedCamera) {
+    camera.mode = BABYLON.Camera.PERSPECTIVE_CAMERA;
+    camera.fov = config.cameraPerspectiveFov;
+  } else {
+    camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
+    setCameraOrtho(camera, scene);
+  }
   camera.lowerBetaLimit = camera.beta;
   camera.upperBetaLimit = camera.beta;
   camera.lowerAlphaLimit = camera.alpha;
@@ -28,7 +34,9 @@ async function setupCommon(scene) {
   camera.attachControl(canvas, true);
   scene.activeCamera = camera;
   scene.getEngine().onResizeObservable.add(function () {
-    setCameraOrtho(camera, scene);
+    if (camera.mode === BABYLON.Camera.ORTHOGRAPHIC_CAMERA) {
+      setCameraOrtho(camera, scene);
+    }
   });
 
   var sunLight = new BABYLON.PointLight("sunLight", new BABYLON.Vector3(0, 8, 0), scene);
@@ -92,19 +100,19 @@ async function setupCommon(scene) {
   facePlaneNotAttachedMaterial.albedoTexture.coordinatesIndex = 0;
   facePlaneNotAttachedMaterial.backFaceCulling = false;
   facePlaneNotAttachedMaterial.disableDepthWrite = true;
-  facePlaneNotAttachedMaterial.depthFunction = BABYLON.Engine.ALWAYS;
+  facePlaneNotAttachedMaterial.depthFunction = BABYLON.Engine.LEQUAL;
 
   let facePlaneAttachedMaterial = facePlaneNotAttachedMaterial.clone();
   facePlaneAttachedMaterial.albedoTexture.coordinatesIndex = 1;
   facePlaneAttachedMaterial.backFaceCulling = false;
   facePlaneAttachedMaterial.disableDepthWrite = true;
-  facePlaneAttachedMaterial.depthFunction = BABYLON.Engine.ALWAYS;
+  facePlaneAttachedMaterial.depthFunction = BABYLON.Engine.LEQUAL;
 
-  scene.setRenderingAutoClearDepthStencil(1, true, true, true);
+  var faceCameraOffsetDirection = camera.position.subtract(BABYLON.Vector3.Zero()).normalize();
 
   sun.faceRoot = new BABYLON.TransformNode("sunFaceRoot", scene);
   sun.faceRoot.parent = sun;
-  sun.faceRoot.position.copyFromFloats(0, 0, 0);
+  sun.faceRoot.position.copyFrom(faceCameraOffsetDirection.scale(2.15 * 0.5 + 0.015));
   sun.faceRoot.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
   sun.face = faceSource.clone("sunFace");
   sun.face.setEnabled(true);
@@ -113,7 +121,6 @@ async function setupCommon(scene) {
   sun.face.position.copyFromFloats(0, 0, 0);
   sun.face.rotationQuaternion = null;
   sun.face.rotation.x = Math.PI / 2;
-  sun.face.renderingGroupId = 1;
 
   planets.forEach(async function (planet) {
     planet.material = makeGameMat(planet.name + "Mat", planet.color, false);
@@ -147,7 +154,11 @@ async function setupCommon(scene) {
 
     planet.faceRoot = new BABYLON.TransformNode(planet.name + "FaceRoot", scene);
     planet.faceRoot.parent = planet.root;
-    planet.faceRoot.position.copyFromFloats(0, orbitPlaneY, 0);
+    planet.faceRoot.position.copyFrom(new BABYLON.Vector3(
+      faceCameraOffsetDirection.x * (planet.size * 0.5 + 0.015),
+      orbitPlaneY + faceCameraOffsetDirection.y * (planet.size * 0.5 + 0.015),
+      faceCameraOffsetDirection.z * (planet.size * 0.5 + 0.015)
+    ));
     planet.faceRoot.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
     planet.face = faceSource.clone(planet.name + "Face");
     planet.face.setEnabled(true);
@@ -156,7 +167,6 @@ async function setupCommon(scene) {
     planet.face.position.copyFromFloats(0, 0, 0);
     planet.face.rotationQuaternion = null;
     planet.face.rotation.x = Math.PI / 2;
-    planet.face.renderingGroupId = 1;
     
   });
 
@@ -562,6 +572,7 @@ async function setupCommon(scene) {
       sentry.cube.rotation.y += dt * 1.45;
       sentry.cube.rotation.z = Math.PI * 0.08;
       updateCubeSentryDrift(sentry, dt);
+      updateCubeSentrySeparation(sentry, dt);
       updateCubeSentryChase(sentry, dt);
     });
   }
@@ -600,6 +611,28 @@ async function setupCommon(scene) {
     }
 
     sentry.root.position.addInPlace(sentry.driftVelocity.scale(dt));
+    sentry.root.position.y = orbitPlaneY;
+  }
+
+  function updateCubeSentrySeparation(sentry, dt) {
+    var separation = BABYLON.Vector3.Zero();
+
+    state.cubeSentries.forEach(function (other) {
+      if (other === sentry) return;
+
+      var away = sentry.root.position.subtract(other.root.position);
+      away.y = 0;
+      var distance = away.length();
+      if (distance <= 0.001 || distance >= config.sentrySeparationRadius) return;
+
+      away.normalize();
+      separation.addInPlace(away.scale((config.sentrySeparationRadius - distance) / config.sentrySeparationRadius));
+    });
+
+    if (separation.lengthSquared() < 0.0001) return;
+
+    separation.normalize();
+    sentry.root.position.addInPlace(separation.scale(config.sentrySeparationStrength * dt));
     sentry.root.position.y = orbitPlaneY;
   }
 
