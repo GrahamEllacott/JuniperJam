@@ -209,10 +209,10 @@ async function setupCommon(scene) {
     initialAsteroidCount: config.initialAsteroidCount,
     initialReachableAsteroidCount: config.initialReachableAsteroidCount,
     particles: [],
+    scorePopups: [],
     score: 0,
     scoreLabel: createScoreLabel(),
     enemyScore: 0,
-    enemyScoreLabel: createEnemyScoreLabel(),
     healthBar: createHealthBar(),
     shakeTime: 0,
     shakeDuration: 0.18,
@@ -297,6 +297,7 @@ async function setupCommon(scene) {
     }
     updateAsteroids(dt);
     updateParticles(dt);
+    updateScorePopups(dt);
     updateLasers(dt);
     updateCameraShake(dt);
     updateCameraTarget(dt);
@@ -963,7 +964,7 @@ async function setupCommon(scene) {
 
   function hitCubeSentry(sentry, sentryIndex) {
     state.enemyScore += 1;
-    updateEnemyScoreLabel();
+    addScore(config.enemyScoreValue, sentry.root.position);
     updateBladeUpgradeAvailability();
     startCameraShake(0.42);
     createParticleBurst(sentry.root.position, 1.2);
@@ -979,8 +980,7 @@ async function setupCommon(scene) {
   }
 
   function hitAsteroid(asteroid, asteroidIndex) {
-    state.score += 1;
-    updateScoreLabel();
+    addScore(config.asteroidScoreValue, asteroid.root.position);
     healShipFromAsteroidSlice();
     startCameraShake(0.3);
     createParticleBurst(asteroid.root.position, asteroid.radius);
@@ -1152,20 +1152,80 @@ async function setupCommon(scene) {
     material.ambientColor = color;
   }
 
+  function addScore(amount, position) {
+    state.score += amount;
+    updateScoreLabel();
+    createScorePopup(position, amount);
+  }
+
+  function createScorePopup(position, amount) {
+    var screenPosition = getScreenPosition(position);
+    var popup = document.createElement("div");
+    popup.style.position = "fixed";
+    popup.style.left = screenPosition.x + "px";
+    popup.style.top = screenPosition.y + "px";
+    popup.style.transform = "translate(-50%, -50%) scale(0.2)";
+    popup.style.transformOrigin = "center";
+    popup.style.color = colors.hudText;
+    popup.style.font = "400 16px 'Press Start 2P', 'Silkscreen', 'Pixelify Sans', 'Courier New', monospace";
+    popup.style.letterSpacing = "1px";
+    popup.style.webkitFontSmoothing = "none";
+    popup.style.fontSmooth = "never";
+    popup.style.imageRendering = "pixelated";
+    popup.style.textShadow = "0 0 8px rgba(0, 220, 255, 0.8), 0 1px 2px rgba(0, 0, 0, 0.8)";
+    popup.style.pointerEvents = "none";
+    popup.style.zIndex = "20";
+    popup.textContent = "+" + amount;
+    document.body.appendChild(popup);
+
+    state.scorePopups.push({
+      element: popup,
+      startX: screenPosition.x,
+      startY: screenPosition.y,
+      age: 0,
+      duration: config.scorePopupDuration
+    });
+  }
+
+  function updateScorePopups(dt) {
+    for (var i = state.scorePopups.length - 1; i >= 0; i -= 1) {
+      var popup = state.scorePopups[i];
+      popup.age += dt;
+      var progress = Math.min(1, popup.age / popup.duration);
+      var springScale = 1 + Math.sin(progress * Math.PI * 3) * Math.exp(-progress * 5) * 0.75;
+      var y = popup.startY - config.scorePopupRise * easeOutBack(progress);
+      popup.element.style.top = y + "px";
+      popup.element.style.opacity = String(Math.max(0, 1 - Math.pow(progress, 2.2)));
+      popup.element.style.transform = "translate(-50%, -50%) scale(" + springScale.toFixed(3) + ")";
+
+      if (progress >= 1) {
+        popup.element.remove();
+        state.scorePopups.splice(i, 1);
+      }
+    }
+  }
+
+  function getScreenPosition(position) {
+    var engine = scene.getEngine();
+    var viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+    var projected = BABYLON.Vector3.Project(
+      position,
+      BABYLON.Matrix.Identity(),
+      scene.getTransformMatrix(),
+      viewport
+    );
+    return {
+      x: projected.x,
+      y: projected.y
+    };
+  }
+
   function createScoreLabel() {
-    return createHudLabel("Asteroids: 0", 14);
+    return createHudLabel("Score: 0", 14);
   }
 
   function updateScoreLabel() {
-    state.scoreLabel.textContent = "Asteroids: " + state.score;
-  }
-
-  function createEnemyScoreLabel() {
-    return createHudLabel("Enemies: 0", 38);
-  }
-
-  function updateEnemyScoreLabel() {
-    state.enemyScoreLabel.textContent = "Enemies: " + state.enemyScore;
+    state.scoreLabel.textContent = "Score: " + state.score;
   }
 
   function createHudLabel(text, top) {
@@ -1174,8 +1234,11 @@ async function setupCommon(scene) {
     label.style.left = "16px";
     label.style.top = top + "px";
     label.style.color = colors.hudText;
-    label.style.font = "600 18px Arial, sans-serif";
-    label.style.letterSpacing = "0";
+    label.style.font = "400 14px 'Press Start 2P', 'Silkscreen', 'Pixelify Sans', 'Courier New', monospace";
+    label.style.letterSpacing = "1px";
+    label.style.webkitFontSmoothing = "none";
+    label.style.fontSmooth = "never";
+    label.style.imageRendering = "pixelated";
     label.style.pointerEvents = "none";
     label.style.zIndex = "11";
     label.textContent = text;
@@ -1498,7 +1561,6 @@ async function setupCommon(scene) {
     state.difficultyTime = 0;
     resetCubeSentries();
     updateScoreLabel();
-    updateEnemyScoreLabel();
   }
 
   function updateShipDestroyed(dt) {
@@ -1583,6 +1645,7 @@ async function setupCommon(scene) {
     if (!planet.bladeUpgrade) return;
 
     createParticleBurst(planet.root.position, 0.85);
+    addScore(config.powerupScoreValue, planet.root.position);
     planet.bladeUpgrade.dispose();
     planet.bladeUpgrade = null;
     planet.mesh.setEnabled(true);

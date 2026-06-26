@@ -2,6 +2,12 @@ function easeInOut(progress) {
   return progress * progress * (3 - 2 * progress);
 }
 
+function easeOutBack(progress) {
+  var overshoot = 1.70158;
+  progress -= 1;
+  return 1 + progress * progress * ((overshoot + 1) * progress + overshoot);
+}
+
 function lerpValue(start, end, progress) {
   return start + (end - start) * progress;
 }

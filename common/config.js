@@ -59,6 +59,11 @@ function createJuniperConfig() {
     asteroidFragmentEnd: 1,
     bladeUpgradeKillsPerExtraPowerup: 8,
     bladeUpgradeMaxExtraPowerups: 4,
+    asteroidScoreValue: 100,
+    enemyScoreValue: 500,
+    powerupScoreValue: 1000,
+    scorePopupDuration: 0.9,
+    scorePopupRise: 44,
     orbitSpecs: [
       { name: "amber", solarRadius: 3.6, angle: 0.4, satelliteOrbit: 0.82, planetCount: 1, color: colors.orbits.amber },
       { name: "blue", solarRadius: 6.0, angle: 2.1, satelliteOrbit: 0.92, planetCount: 2, color: colors.orbits.blue },
