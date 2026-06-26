@@ -21,15 +21,26 @@ function makeMat(scene, name, color, emissive, alpha) {
 
 function createCircleLines(name, radius, material, scene) {
   var points = [];
+  var colors = [];
   var segments = 144;
+  var alpha = material.alpha !== undefined ? material.alpha : 1;
   for (var i = 0; i <= segments; i += 1) {
     var angle = (i / segments) * Math.PI * 2;
     points.push(new BABYLON.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+    colors.push(new BABYLON.Color4(
+      material.diffuseColor.r,
+      material.diffuseColor.g,
+      material.diffuseColor.b,
+      alpha
+    ));
   }
 
-  var lines = BABYLON.MeshBuilder.CreateLines(name, { points: points }, scene);
-  lines.color = material.diffuseColor;
-  lines.alpha = material.alpha || 1;
+  var lines = BABYLON.MeshBuilder.CreateLines(name, {
+    points: points,
+    colors: colors
+  }, scene);
+  lines.color = material.diffuseColor.clone();
+  lines.alpha = alpha;
   lines.isPickable = false;
   return lines;
 }

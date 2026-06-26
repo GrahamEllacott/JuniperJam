@@ -39,8 +39,8 @@ async function setupCommon(scene) {
     sun: makeMat(scene, "sunMat", new BABYLON.Color3(1, 0.78, 0.08), true),
     sunRing: makeMat(scene, "sunOrbitRingMat", new BABYLON.Color3(1, 0.82, 0.08), true, 0.85),
     satellite: makeMat(scene, "satelliteMat", new BABYLON.Color3(0.9, 0.95, 1), true),
-    ring: makeMat(scene, "orbitRingMat", new BABYLON.Color3(0.05, 0.08, 0.18), false, 0.28),
-    upgradeRing: makeMat(scene, "upgradeOrbitRingMat", new BABYLON.Color3(1, 1, 1), true, 0.95),
+    ring: makeMat(scene, "orbitRingMat", new BABYLON.Color3(1, 1, 1), false, 0.32),
+    upgradeRing: makeMat(scene, "upgradeOrbitRingMat", new BABYLON.Color3(1, 1, 1), false, 0.48),
     jump: makeMat(scene, "jumpMat", new BABYLON.Color3(0.2, 0.9, 1), true),
     stars: makeMat(scene, "starMat", new BABYLON.Color3(1, 1, 1), true),
     asteroid: makeMat(scene, "asteroidMat", new BABYLON.Color3(0.46, 0.43, 0.38), false),
@@ -68,7 +68,7 @@ async function setupCommon(scene) {
 
   var orbitSpecs = config.orbitSpecs;
   var outerReturnRingRadius = config.outerReturnRingRadius;
-  var outerReturnRing = createCircleLines("outerReturnRing", outerReturnRingRadius, materials.sunRing, scene);
+  var outerReturnRing = createCircleLines("outerReturnRing", outerReturnRingRadius, materials.ring, scene);
   outerReturnRing.position.y = orbitPlaneY;
   var planets = makePlanetsForOrbits(orbitSpecs);
   var cubeSentrySpecs = config.cubeSentrySpecs;
@@ -80,18 +80,35 @@ async function setupCommon(scene) {
     scene
   )
 
-  let facePlaneNotAttachedMaterial = scene.getMeshByName("planetFace").material;
+  let faceSource = scene.getMeshByName("planetFace");
+  faceSource.setEnabled(false);
+
+  let facePlaneNotAttachedMaterial = faceSource.material;
   facePlaneNotAttachedMaterial.albedoTexture.coordinatesIndex = 0;
+  facePlaneNotAttachedMaterial.backFaceCulling = false;
+  facePlaneNotAttachedMaterial.disableDepthWrite = true;
+  facePlaneNotAttachedMaterial.depthFunction = BABYLON.Engine.ALWAYS;
 
   let facePlaneAttachedMaterial = facePlaneNotAttachedMaterial.clone();
   facePlaneAttachedMaterial.albedoTexture.coordinatesIndex = 1;
+  facePlaneAttachedMaterial.backFaceCulling = false;
+  facePlaneAttachedMaterial.disableDepthWrite = true;
+  facePlaneAttachedMaterial.depthFunction = BABYLON.Engine.ALWAYS;
 
-  sun.face = scene.getMeshByName("planetFace").clone("sunFace");
-  sun.face.parent = sun;
+  scene.setRenderingAutoClearDepthStencil(1, true, true, true);
+
+  sun.faceRoot = new BABYLON.TransformNode("sunFaceRoot", scene);
+  sun.faceRoot.parent = sun;
+  sun.faceRoot.position.copyFromFloats(0, 0, 0);
+  sun.faceRoot.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+  sun.face = faceSource.clone("sunFace");
+  sun.face.setEnabled(true);
+  sun.face.parent = sun.faceRoot;
   sun.face.scaling.setAll(2.15 * 0.42);
-  sun.face.position.y = 2.15 * 0.5 + 0.02;
+  sun.face.position.copyFromFloats(0, 0, 0);
   sun.face.rotationQuaternion = null;
-  sun.face.rotation.y = Math.PI * .75;
+  sun.face.rotation.x = Math.PI / 2;
+  sun.face.renderingGroupId = 1;
 
   planets.forEach(async function (planet) {
     planet.material = makeMat(scene, planet.name + "Mat", planet.color, false);
@@ -122,12 +139,18 @@ async function setupCommon(scene) {
       planet.bladeUpgrade = createBladeUpgrade(planet, scene);
     }
 
-    planet.face = scene.getMeshByName("planetFace").clone(planet.name + "Face");
-    planet.face.parent = planet.root;
+    planet.faceRoot = new BABYLON.TransformNode(planet.name + "FaceRoot", scene);
+    planet.faceRoot.parent = planet.root;
+    planet.faceRoot.position.copyFromFloats(0, orbitPlaneY, 0);
+    planet.faceRoot.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+    planet.face = faceSource.clone(planet.name + "Face");
+    planet.face.setEnabled(true);
+    planet.face.parent = planet.faceRoot;
     planet.face.scaling.setAll(planet.size * 0.42);
-    planet.face.position.y = orbitPlaneY + planet.size * 0.5 + 0.02;
+    planet.face.position.copyFromFloats(0, 0, 0);
     planet.face.rotationQuaternion = null;
-    planet.face.rotation.y = Math.PI * .75;
+    planet.face.rotation.x = Math.PI / 2;
+    planet.face.renderingGroupId = 1;
     
   });
 
@@ -1474,8 +1497,8 @@ async function setupCommon(scene) {
     planet.bladeUpgrade.dispose();
     planet.bladeUpgrade = null;
     planet.mesh.setEnabled(true);
-    planet.captureRing.color = materials.ring.diffuseColor;
-    planet.captureRing.alpha = materials.ring.alpha || 1;
+    planet.captureRing.color = materials.ring.diffuseColor.clone();
+    planet.captureRing.alpha = materials.ring.alpha !== undefined ? materials.ring.alpha : 1;
     planet.bladeUpgradeRespawnTime = 18 + Math.random() * 10;
     startSuperBladePowerup();
     startCameraShake(0.18);
@@ -1490,8 +1513,8 @@ async function setupCommon(scene) {
 
     planet.bladeUpgradeRespawnTime = 0;
     planet.bladeUpgrade = createBladeUpgrade(planet, scene);
-    planet.captureRing.color = materials.upgradeRing.diffuseColor;
-    planet.captureRing.alpha = materials.upgradeRing.alpha || 1;
+    planet.captureRing.color = materials.upgradeRing.diffuseColor.clone();
+    planet.captureRing.alpha = materials.upgradeRing.alpha !== undefined ? materials.upgradeRing.alpha : 1;
   }
 
   function isCurrentAttachedPlanet(planet) {
@@ -1556,12 +1579,16 @@ async function setupCommon(scene) {
 
   function createAimSight(scene) {
     var sight = new BABYLON.TransformNode("satelliteBladeSight", scene);
+    sight.bladeSideOffset = 0.07;
+    sight.bladeBaseZ = 0.52;
+
     var bladeCore = BABYLON.MeshBuilder.CreateCylinder("bladeCore", {
       height: 1,
       diameter: 0.075,
       tessellation: 16
     }, scene);
     bladeCore.parent = sight;
+    bladeCore.position.x = sight.bladeSideOffset;
     bladeCore.position.y = 0.58;
     bladeCore.position.z = 1.21;
     bladeCore.rotation.x = Math.PI / 2;
@@ -1574,6 +1601,7 @@ async function setupCommon(scene) {
       tessellation: 16
     }, scene);
     bladeGlow.parent = sight;
+    bladeGlow.position.x = sight.bladeSideOffset;
     bladeGlow.position.y = 0.58;
     bladeGlow.position.z = 1.21;
     bladeGlow.rotation.x = Math.PI / 2;
@@ -1582,7 +1610,6 @@ async function setupCommon(scene) {
 
     sight.bladeCore = bladeCore;
     sight.bladeGlow = bladeGlow;
-    sight.bladeBaseZ = 0.52;
     return sight;
   }
 
@@ -1596,6 +1623,8 @@ async function setupCommon(scene) {
     aimSight.bladeCore.scaling.z = visualThickness;
     aimSight.bladeGlow.scaling.x = visualThickness;
     aimSight.bladeGlow.scaling.z = visualThickness;
+    aimSight.bladeCore.position.x = aimSight.bladeSideOffset;
+    aimSight.bladeGlow.position.x = aimSight.bladeSideOffset;
     aimSight.bladeCore.position.z = centerZ;
     aimSight.bladeGlow.position.z = centerZ;
   }
@@ -1610,11 +1639,21 @@ async function setupCommon(scene) {
 
   function getBladePoint(distance) {
     var direction = getOutwardDirection();
+    var side = getBladeSideDirection(direction).scale(aimSight.bladeSideOffset);
     return new BABYLON.Vector3(
-      satelliteRoot.position.x + direction.x * distance,
+      satelliteRoot.position.x + direction.x * distance + side.x,
       orbitPlaneY,
-      satelliteRoot.position.z + direction.z * distance
+      satelliteRoot.position.z + direction.z * distance + side.z
     );
+  }
+
+  function getBladeSideDirection(direction) {
+    var side = new BABYLON.Vector3(direction.z, 0, -direction.x);
+    if (side.lengthSquared() < 0.0001) {
+      side = new BABYLON.Vector3(1, 0, 0);
+    }
+    side.normalize();
+    return side;
   }
 
   function getOutwardDirection() {
